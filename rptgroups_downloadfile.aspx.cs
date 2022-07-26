@@ -1,6 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Web;
 using System.Web.UI;
 using System.Web.UI.WebControls;
@@ -100,7 +103,7 @@ namespace AgencyPartnerPortal_v1._0.CommonFiles
                     string SPgrpType = ReqData.grpType.ToString();
                     string SPName = ReqData.ServName.ToString();
                     string _strTitle = SPName;
-
+                    string grp24typ = "";
 
 
                     string _strProgram = SPgrpType + " - " + SPName;
@@ -112,6 +115,24 @@ namespace AgencyPartnerPortal_v1._0.CommonFiles
                         _strSheetName = _strProgram.Substring(0, 24);
                         _strSheetName = reg.Replace(_strSheetName, string.Empty);
 
+                        if (SPID == "16")
+                            _strSheetName = "I-AP-RC Agency Visit";
+                        if (SPID == "26")
+                            _strSheetName = "I-AP-RC Pickup Request";
+                        if (SPID == "24")
+                        {
+                            str24GrpType = grp24typ = ReqData.grp24Type.ToString();
+                            if (grp24typ == "DI")
+                            {
+                                _strSheetName = "I-SRC-Daily Intake";
+                                _strTitle = _strTitle + " - " + "Daily Intake";
+                            }
+                            else
+                            {
+                                _strSheetName = "I-SRC-Request Intake";
+                                _strTitle = _strTitle + " - " + "Request Intake";
+                            }
+                        }
                         //_strSheetName = _strSheetName + " - " + (Convert.ToInt32(_strFisicalYear.Substring(2, 2)) + 1).ToString();
                     }
                     else
@@ -126,7 +147,12 @@ namespace AgencyPartnerPortal_v1._0.CommonFiles
                     dtgrpReq = new DataTable();
                     // DataSet ds = AgencyPartnerPortalDB.DatabaseLayer.Capsystems.GetSPMeasures("", SPID, "SEREQBYID");
                     DataTable _dt = new DataTable();
-                    DataRow[] drservReqdata = dsServReqstData.Tables[0].Select("APR_SEREQ_SP='" + SPID + "' AND APR_SEREQ_SP_TYPE='" + SPgrpType + "'");
+                    DataRow[] drservReqdata = null;
+                    if (SPID == "24")
+                        drservReqdata = dsServReqstData.Tables[0].Select("APR_SEREQ_SP='" + SPID + "' AND APR_SEREQ_SP_TYPE='" + SPgrpType + "' AND SUBSTRING(APR_SERQ_DEMOGRAPH, LEN(APR_SERQ_DEMOGRAPH) - 3, 2)='" + grp24typ + "'");
+                    else
+                        drservReqdata = dsServReqstData.Tables[0].Select("APR_SEREQ_SP='" + SPID + "' AND APR_SEREQ_SP_TYPE='" + SPgrpType + "'");
+
                     if (drservReqdata.Length > 0)
                         _dt = drservReqdata.CopyToDataTable();
 
@@ -913,7 +939,7 @@ namespace AgencyPartnerPortal_v1._0.CommonFiles
 
 
                                     excelrow = sheet.Table.Rows.Add();
-                                    excelrow.Height = 5;
+                                    excelrow.Height = 1;
                                     cell = excelrow.Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlEMPTC);
                                     cell.MergeAcross = Mergcells;
 
@@ -940,10 +966,11 @@ namespace AgencyPartnerPortal_v1._0.CommonFiles
                             #endregion
                         }
                         #endregion
+
                         #region Individuals Report Code
                         else
                         {
-                            DataTable dt23DemographData = new DataTable();
+                            DataTable dtINDVDemographData = new DataTable();
                             serviceCnt = dtServices.Rows.Count;
                             if (SPID != "17")
                             {
@@ -957,9 +984,15 @@ namespace AgencyPartnerPortal_v1._0.CommonFiles
                             }
                             questionsCnt = dsQueMast.Tables[0].Rows.Count;
 
-                            if (SPID == "23")
+                            if (SPID == "23" || SPID == "16" || SPID == "26" || (SPID == "24" && str24GrpType == "DI"))
                             {
-                                dt23DemographData = BuildDataSet23WithAllTables(_dt, dtQuestions, _dsMasters, SPID, SPgrpType);
+                                dtINDVDemographData = BuildDataSetINDVWithAllTables(_dt, dtQuestions, _dsMasters, SPID, SPgrpType);
+
+                                if (SPID == "26" || (SPID == "24" && str24GrpType == "DI"))
+                                {
+                                    dtgrpReq.Rows.Clear();
+                                    dtgrpReq = dtINDVDemographData.Copy();
+                                }
                             }
 
                             #region ADD COLUMNS
@@ -972,7 +1005,11 @@ namespace AgencyPartnerPortal_v1._0.CommonFiles
                             sheet.Table.Columns.Add(new WorksheetColumn(70));   //Change Operator
 
                             //** Request Columns **//
-                            if (SPID == "17")
+                            if (SPID == "16")
+                            {
+                                serviceCnt = 2;
+                            }
+                            else if (SPID == "17")
                             {
                                 serviceCnt = serviceCnt + 5;
                             }
@@ -980,18 +1017,47 @@ namespace AgencyPartnerPortal_v1._0.CommonFiles
                             {
                                 serviceCnt = 12;
                             }
+                            if (SPID == "26")
+                            {
+                                serviceCnt = 6;
+                            }
+                            if (SPID == "24" && str24GrpType == "DI")
+                                serviceCnt = 1;
+
+                            if (SPID == "24" && str24GrpType == "IR")
+                                serviceCnt = 6;
+
                             for (int x = 0; x < serviceCnt; x++)
                             {
                                 sheet.Table.Columns.Add(new WorksheetColumn(60));
                             }
 
 
-
-                            sheet.Table.Columns.Add(new WorksheetColumn(50));
+                            if (SPID != "16" && SPID != "26" && (SPID != "24" && str24GrpType != "DI") && (SPID != "24" && str24GrpType != "IR"))
+                                sheet.Table.Columns.Add(new WorksheetColumn(50));
                             /*******************************************************************/
 
                             //** Actual Distribution Columns **//
-                            if (SPID == "17")
+
+                            if (SPID == "16")
+                            {
+                                sheet.Table.Columns.Add(new WorksheetColumn(60));   //Client Name
+                                sheet.Table.Columns.Add(new WorksheetColumn(60));   //Service Plan
+                                sheet.Table.Columns.Add(new WorksheetColumn(60));   //Service
+
+                                sheet.Table.Columns.Add(new WorksheetColumn(50));   //Total Qty
+                                sheet.Table.Columns.Add(new WorksheetColumn(50));   //Transaction Units
+                                sheet.Table.Columns.Add(new WorksheetColumn(50));   //Unit Price
+                                sheet.Table.Columns.Add(new WorksheetColumn(50));   //Total Value
+
+
+                                sheet.Table.Columns.Add(new WorksheetColumn(60));   // Description
+                                sheet.Table.Columns.Add(new WorksheetColumn(50));   //Status
+
+                                /***********************************************************************/
+                            }
+
+                            else if (SPID == "17")
                             {
                                 for (int x = 0; x < (serviceCnt - 5); x++)
                                 {
@@ -1030,18 +1096,51 @@ namespace AgencyPartnerPortal_v1._0.CommonFiles
                                 //sheet.Table.Columns.Add(new WorksheetColumn(50));
                                 /***********************************************************************/
                             }
+                            else if (SPID == "26")
+                            {
+                                sheet.Table.Columns.Add(new WorksheetColumn(60));   //Client Name
+                                sheet.Table.Columns.Add(new WorksheetColumn(120));   //Item Description
+                                sheet.Table.Columns.Add(new WorksheetColumn(60));   //Service Plan
+                                sheet.Table.Columns.Add(new WorksheetColumn(60));   //Service
 
+                                sheet.Table.Columns.Add(new WorksheetColumn(50));   //Total Qty
+                                sheet.Table.Columns.Add(new WorksheetColumn(50));   //Transaction Units
+                                sheet.Table.Columns.Add(new WorksheetColumn(50));   //Unit Price
+                                sheet.Table.Columns.Add(new WorksheetColumn(50));   //Total Value
+
+
+                                sheet.Table.Columns.Add(new WorksheetColumn(60));   // Description
+                                sheet.Table.Columns.Add(new WorksheetColumn(50));   //Status
+
+                                /***********************************************************************/
+                            }
+                            else if (SPID == "24" && str24GrpType == "IR")
+                            {
+                                sheet.Table.Columns.Add(new WorksheetColumn(60));   // Item
+                                sheet.Table.Columns.Add(new WorksheetColumn(60));   // Service
+                                sheet.Table.Columns.Add(new WorksheetColumn(70));   // Total Qty
+                                sheet.Table.Columns.Add(new WorksheetColumn(70));   // Transaction Unit
+                                sheet.Table.Columns.Add(new WorksheetColumn(140));  // Unit Price
+                                sheet.Table.Columns.Add(new WorksheetColumn(120));  // Total Value
+
+                                sheet.Table.Columns.Add(new WorksheetColumn(60));   // Description
+                                sheet.Table.Columns.Add(new WorksheetColumn(50));   //Status
+                            }
                             /** Representative Details**/
-                            sheet.Table.Columns.Add(new WorksheetColumn(70));   // Rep Name
-                            sheet.Table.Columns.Add(new WorksheetColumn(70));   // Rep Last Name
-                            sheet.Table.Columns.Add(new WorksheetColumn(70));   // Rep Phone Number
-                            sheet.Table.Columns.Add(new WorksheetColumn(70));   // Rep Secondary Phone Number
-                            sheet.Table.Columns.Add(new WorksheetColumn(140));  // Rep Email
-                            sheet.Table.Columns.Add(new WorksheetColumn(120));  // Rep Position
+                            if (str24GrpType != "DI")
+                            {
+                                sheet.Table.Columns.Add(new WorksheetColumn(70));   // Rep Name
+                                sheet.Table.Columns.Add(new WorksheetColumn(70));   // Rep Last Name
+                                sheet.Table.Columns.Add(new WorksheetColumn(70));   // Rep Phone Number
+                                sheet.Table.Columns.Add(new WorksheetColumn(70));   // Rep Secondary Phone Number
+                                sheet.Table.Columns.Add(new WorksheetColumn(140));  // Rep Email
+                                sheet.Table.Columns.Add(new WorksheetColumn(120));  // Rep Position
 
-                            sheet.Table.Columns.Add(new WorksheetColumn(60));   // Target Date
+                                sheet.Table.Columns.Add(new WorksheetColumn(60));   // Target Date
+                            }
 
-                            if (SPID != "17")
+
+                            if (SPID != "17" && (str24GrpType != "IR"))
                             {
                                 /** Gender Details**/
                                 for (int x = 0; x < genderCnt; x++)
@@ -1075,7 +1174,15 @@ namespace AgencyPartnerPortal_v1._0.CommonFiles
                                 }
                             }
 
+                            if (SPID == "16" || SPID == "26" || (SPID == "24" && str24GrpType == "DI"))
+                            {
+                                /*Additional Options*/
 
+                                for (int x = 0; x < 3; x++)
+                                {
+                                    sheet.Table.Columns.Add(new WorksheetColumn(180));
+                                }
+                            }
                             if (SPID == "23")
                             {
                                 /*Additional Questions*/
@@ -1087,10 +1194,12 @@ namespace AgencyPartnerPortal_v1._0.CommonFiles
                             }
 
                             /*Questions Detaisl*/
-
-                            for (int x = 0; x < questionsCnt; x++)
+                            if (SPID != "16" && SPID != "26" && (SPID != "24" && str24GrpType != "DI") && (SPID != "24" && str24GrpType != "IR"))
                             {
-                                sheet.Table.Columns.Add(new WorksheetColumn(220));
+                                for (int x = 0; x < questionsCnt; x++)
+                                {
+                                    sheet.Table.Columns.Add(new WorksheetColumn(220));
+                                }
                             }
 
                             #endregion
@@ -1125,24 +1234,38 @@ namespace AgencyPartnerPortal_v1._0.CommonFiles
                             if (serviceCnt > 0)
                             {
                                 cell = excelrow.Cells.Add("REQUEST", DataType.String, oCarlosAg_Excel_Properties.gxlBCHC_sp);
-                                cell.MergeAcross = serviceCnt;
+                                if (SPID == "16" || SPID == "26" || (SPID == "24" && str24GrpType == "DI") || (SPID == "24" && str24GrpType == "IR"))
+                                    cell.MergeAcross = serviceCnt - 1;
+                                else
+                                    cell.MergeAcross = serviceCnt;
                             }
 
                             if (serviceCnt > 0)
                             {
-                                cell = excelrow.Cells.Add("ACTUAL DISTRIBUTION", DataType.String, oCarlosAg_Excel_Properties.gxlGCHC_sp);
-                                if (SPID == "17")
+                                if (str24GrpType != "DI")
+                                    cell = excelrow.Cells.Add("ACTUAL DISTRIBUTION", DataType.String, oCarlosAg_Excel_Properties.gxlGCHC_sp);
+
+                                if (SPID == "16")
+                                    cell.MergeAcross = 8;
+                                else if (SPID == "17")
                                     cell.MergeAcross = (serviceCnt - 5) + 7;
                                 else if (SPID == "23")
                                     cell.MergeAcross = 10;
+                                else if (SPID == "26")
+                                    cell.MergeAcross = 9;
+                                else if (SPID == "24" && str24GrpType == "IR")
+                                    cell.MergeAcross = 7;
                             }
 
-                            cell = excelrow.Cells.Add("REPRESENTATIVE DETAILS", DataType.String, oCarlosAg_Excel_Properties.gxlBRCHC_sp);
-                            cell.MergeAcross = 5;
+                            if (str24GrpType != "DI")
+                            {
+                                cell = excelrow.Cells.Add("REPRESENTATIVE DETAILS", DataType.String, oCarlosAg_Excel_Properties.gxlBRCHC_sp);
+                                cell.MergeAcross = 5;
 
-                            cell = excelrow.Cells.Add("Target Date", DataType.String, oCarlosAg_Excel_Properties.gxlNCHC);
+                                cell = excelrow.Cells.Add("Target Date", DataType.String, oCarlosAg_Excel_Properties.gxlNCHC);
+                            }
 
-                            if (SPID != "17")
+                            if (SPID != "17" && (str24GrpType != "IR"))
                             {
                                 cell = excelrow.Cells.Add("GENDER", DataType.String, oCarlosAg_Excel_Properties.gxlNCHC);
                                 cell.MergeAcross = genderCnt - 1;
@@ -1169,12 +1292,22 @@ namespace AgencyPartnerPortal_v1._0.CommonFiles
                                 cell.MergeAcross = 3;
                             }
 
-                            cell = excelrow.Cells.Add(_strTitle + " " + "QUESTIONS", DataType.String, oCarlosAg_Excel_Properties.gxlNCHC);
-                            if (SPID == "23")
-                                cell.MergeAcross = questionsCnt - 5;
-                            else
-                                cell.MergeAcross = questionsCnt - 1;
+                            if (SPID != "16" && SPID != "26" && (SPID != "24" && str24GrpType != "DI") && (SPID != "24" && str24GrpType != "IR"))
+                            {
+                                cell = excelrow.Cells.Add(_strTitle + " " + "QUESTIONS", DataType.String, oCarlosAg_Excel_Properties.gxlNCHC);
 
+                                if (SPID == "23")
+                                    cell.MergeAcross = questionsCnt - 5;
+                                else
+                                    cell.MergeAcross = questionsCnt - 1;
+                            }
+
+                            if (SPID == "16" || SPID == "26" || (SPID == "24" && str24GrpType == "DI"))
+                            {
+                                cell = excelrow.Cells.Add("Family making below $65,000/year?", DataType.String, oCarlosAg_Excel_Properties.gxlNCHC);
+                                cell = excelrow.Cells.Add("Client of APC?", DataType.String, oCarlosAg_Excel_Properties.gxlNCHC);
+                                cell = excelrow.Cells.Add("Experiencing Homeslessness?", DataType.String, oCarlosAg_Excel_Properties.gxlNCHC);
+                            }
                             #endregion
 
                             #region COLUMNS-2 BLOCK 3
@@ -1190,8 +1323,12 @@ namespace AgencyPartnerPortal_v1._0.CommonFiles
                             //REQUEST
                             if (serviceCnt > 0)
                             {
-
-                                if (SPID == "17")
+                                if (SPID == "16")
+                                {
+                                    cell = excelrow.Cells.Add("Client Name", DataType.String, oCarlosAg_Excel_Properties.gxlBCHC);
+                                    cell = excelrow.Cells.Add("Client Last Name", DataType.String, oCarlosAg_Excel_Properties.gxlBCHC);
+                                }
+                                else if (SPID == "17")
                                 {
                                     foreach (DataRow drserHeads in dtServices.Rows)
                                     {
@@ -1203,6 +1340,7 @@ namespace AgencyPartnerPortal_v1._0.CommonFiles
                                     cell = excelrow.Cells.Add("DOB".ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlBCHC);
                                     cell = excelrow.Cells.Add("Client of A Preciosu Child?", DataType.String, oCarlosAg_Excel_Properties.gxlBCHC);
                                     cell = excelrow.Cells.Add("Responsibility for additional documentation", DataType.String, oCarlosAg_Excel_Properties.gxlBCHC);
+                                    cell = excelrow.Cells.Add("Total Ind. Served", DataType.String, oCarlosAg_Excel_Properties.gxlBCHC);
                                 }
                                 else if (SPID == "23")
                                 {
@@ -1218,19 +1356,64 @@ namespace AgencyPartnerPortal_v1._0.CommonFiles
                                     cell = excelrow.Cells.Add("Parent or CG Last Name ", DataType.String, oCarlosAg_Excel_Properties.gxlBCHC);
                                     cell = excelrow.Cells.Add("Parent or CG Phone ", DataType.String, oCarlosAg_Excel_Properties.gxlBCHC);
                                     cell = excelrow.Cells.Add("Parent or CG Email  ", DataType.String, oCarlosAg_Excel_Properties.gxlBCHC);
+                                    cell = excelrow.Cells.Add("Total Ind. Served", DataType.String, oCarlosAg_Excel_Properties.gxlBCHC);
                                 }
-                                cell = excelrow.Cells.Add("Total Ind. Served", DataType.String, oCarlosAg_Excel_Properties.gxlBCHC);
+                                else if (SPID == "26")
+                                {
+                                    cell = excelrow.Cells.Add("Client Name", DataType.String, oCarlosAg_Excel_Properties.gxlBCHC);
+                                    cell = excelrow.Cells.Add("Client Last Name", DataType.String, oCarlosAg_Excel_Properties.gxlBCHC);
+                                    cell = excelrow.Cells.Add("Item Description", DataType.String, oCarlosAg_Excel_Properties.gxlBCHC);
+                                    cell = excelrow.Cells.Add("Amount", DataType.String, oCarlosAg_Excel_Properties.gxlBCHC);
+                                    cell = excelrow.Cells.Add("Size (if applicable)", DataType.String, oCarlosAg_Excel_Properties.gxlBCHC);
+                                    cell = excelrow.Cells.Add("Additional Info (If App)", DataType.String, oCarlosAg_Excel_Properties.gxlBCHC);
+                                }
+                                else if (SPID == "24" && str24GrpType == "DI")
+                                {
+                                    cell = excelrow.Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlBCHC);
+                                }
+                                else if (SPID == "24" && str24GrpType == "IR")
+                                {
+                                    cell = excelrow.Cells.Add("Season", DataType.String, oCarlosAg_Excel_Properties.gxlBCHC);
+                                    cell = excelrow.Cells.Add("Demographic Group", DataType.String, oCarlosAg_Excel_Properties.gxlBCHC);
+                                    cell = excelrow.Cells.Add("Clothing Type/Item Description", DataType.String, oCarlosAg_Excel_Properties.gxlBCHC);
+                                    cell = excelrow.Cells.Add("Size", DataType.String, oCarlosAg_Excel_Properties.gxlBCHC);
+                                    cell = excelrow.Cells.Add("Total", DataType.String, oCarlosAg_Excel_Properties.gxlBCHC);
+                                    cell = excelrow.Cells.Add("Units", DataType.String, oCarlosAg_Excel_Properties.gxlBCHC);
+                                }
                             }
 
                             //ACTUAL DISTRIBUTION
                             if (serviceCnt > 0)
                             {
+                                if (SPID == "16")
+                                {
+                                    cell = excelrow.Cells.Add("Client Name", DataType.String, oCarlosAg_Excel_Properties.gxlGCHC);
+                                    cell = excelrow.Cells.Add("Service Plan", DataType.String, oCarlosAg_Excel_Properties.gxlGCHC);
+                                    cell = excelrow.Cells.Add("Service", DataType.String, oCarlosAg_Excel_Properties.gxlGCHC);
+
+                                    cell = excelrow.Cells.Add("Total Qty", DataType.String, oCarlosAg_Excel_Properties.gxlGCHC);
+                                    cell = excelrow.Cells.Add("Transaction Units", DataType.String, oCarlosAg_Excel_Properties.gxlGCHC);
+                                    cell = excelrow.Cells.Add("Unit Price", DataType.String, oCarlosAg_Excel_Properties.gxlGCHC);
+                                    cell = excelrow.Cells.Add("Total Value", DataType.String, oCarlosAg_Excel_Properties.gxlGCHC);
+                                    cell = excelrow.Cells.Add("Description", DataType.String, oCarlosAg_Excel_Properties.gxlGCHC);
+                                    cell = excelrow.Cells.Add("Status", DataType.String, oCarlosAg_Excel_Properties.gxlGCHC);
+                                }
                                 if (SPID == "17")
                                 {
                                     foreach (DataRow drserHeads in dtServices.Rows)
                                     {
                                         cell = excelrow.Cells.Add(drserHeads["CAMS_DESC"].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlGCHC);
                                     }
+
+                                    cell = excelrow.Cells.Add("Total Qty", DataType.String, oCarlosAg_Excel_Properties.gxlGCHC);
+                                    cell = excelrow.Cells.Add("Transaction Units", DataType.String, oCarlosAg_Excel_Properties.gxlGCHC);
+                                    cell = excelrow.Cells.Add("Unit Price", DataType.String, oCarlosAg_Excel_Properties.gxlGCHC);
+                                    cell = excelrow.Cells.Add("Total Value", DataType.String, oCarlosAg_Excel_Properties.gxlGCHC);
+                                    cell = excelrow.Cells.Add("Description", DataType.String, oCarlosAg_Excel_Properties.gxlGCHC);
+
+                                    cell = excelrow.Cells.Add("Total Ind. Served", DataType.String, oCarlosAg_Excel_Properties.gxlGCHC);
+                                    cell = excelrow.Cells.Add("Demographics Update Require", DataType.String, oCarlosAg_Excel_Properties.gxlGCHC);
+                                    cell = excelrow.Cells.Add("Status", DataType.String, oCarlosAg_Excel_Properties.gxlGCHC);
                                 }
                                 if (SPID == "23")
                                 {
@@ -1247,40 +1430,51 @@ namespace AgencyPartnerPortal_v1._0.CommonFiles
                                     cell = excelrow.Cells.Add("PG/Seasonal Gift Card Provides", DataType.String, oCarlosAg_Excel_Properties.gxlGCHC);
                                     cell = excelrow.Cells.Add("Recipient Full Name ", DataType.String, oCarlosAg_Excel_Properties.gxlGCHC);
                                 }
-
-
-                                if (SPID == "17")
+                                if (SPID == "26")
                                 {
+                                    cell = excelrow.Cells.Add("Client Name", DataType.String, oCarlosAg_Excel_Properties.gxlGCHC);
+                                    cell = excelrow.Cells.Add("Item Description", DataType.String, oCarlosAg_Excel_Properties.gxlGCHC);
+                                    cell = excelrow.Cells.Add("Service Plan", DataType.String, oCarlosAg_Excel_Properties.gxlGCHC);
+                                    cell = excelrow.Cells.Add("Service", DataType.String, oCarlosAg_Excel_Properties.gxlGCHC);
+
                                     cell = excelrow.Cells.Add("Total Qty", DataType.String, oCarlosAg_Excel_Properties.gxlGCHC);
                                     cell = excelrow.Cells.Add("Transaction Units", DataType.String, oCarlosAg_Excel_Properties.gxlGCHC);
                                     cell = excelrow.Cells.Add("Unit Price", DataType.String, oCarlosAg_Excel_Properties.gxlGCHC);
                                     cell = excelrow.Cells.Add("Total Value", DataType.String, oCarlosAg_Excel_Properties.gxlGCHC);
                                     cell = excelrow.Cells.Add("Description", DataType.String, oCarlosAg_Excel_Properties.gxlGCHC);
-
-                                    cell = excelrow.Cells.Add("Total Ind. Served", DataType.String, oCarlosAg_Excel_Properties.gxlGCHC);
-                                    cell = excelrow.Cells.Add("Demographics Update Require", DataType.String, oCarlosAg_Excel_Properties.gxlGCHC);
                                     cell = excelrow.Cells.Add("Status", DataType.String, oCarlosAg_Excel_Properties.gxlGCHC);
                                 }
-                                else
+
+                                if (SPID == "24" && str24GrpType == "IR")
                                 {
-                                    //cell = excelrow.Cells.Add("Status", DataType.String, oCarlosAg_Excel_Properties.gxlGCHC);
-                                    // cell = excelrow.Cells.Add("Total Ind. Served", DataType.String, oCarlosAg_Excel_Properties.gxlGCHC);
+                                    cell = excelrow.Cells.Add("Item", DataType.String, oCarlosAg_Excel_Properties.gxlGCHC);
+                                    cell = excelrow.Cells.Add("Service", DataType.String, oCarlosAg_Excel_Properties.gxlGCHC);
+
+                                    cell = excelrow.Cells.Add("Total Qty", DataType.String, oCarlosAg_Excel_Properties.gxlGCHC);
+                                    cell = excelrow.Cells.Add("Transaction Units", DataType.String, oCarlosAg_Excel_Properties.gxlGCHC);
+                                    cell = excelrow.Cells.Add("Unit Price", DataType.String, oCarlosAg_Excel_Properties.gxlGCHC);
+                                    cell = excelrow.Cells.Add("Total Value", DataType.String, oCarlosAg_Excel_Properties.gxlGCHC);
+                                    cell = excelrow.Cells.Add("Description", DataType.String, oCarlosAg_Excel_Properties.gxlGCHC);
+                                    cell = excelrow.Cells.Add("Status", DataType.String, oCarlosAg_Excel_Properties.gxlGCHC);
                                 }
-
-
                             }
-                            //REPRESENTATIVE DETAILS
-                            cell = excelrow.Cells.Add("Name", DataType.String, oCarlosAg_Excel_Properties.gxlBRLHC);
-                            cell = excelrow.Cells.Add("Last Name", DataType.String, oCarlosAg_Excel_Properties.gxlBRLHC);
-                            cell = excelrow.Cells.Add("Phone", DataType.String, oCarlosAg_Excel_Properties.gxlBRLHC);
-                            cell = excelrow.Cells.Add("Phone2", DataType.String, oCarlosAg_Excel_Properties.gxlBRLHC);
-                            cell = excelrow.Cells.Add("Email", DataType.String, oCarlosAg_Excel_Properties.gxlBRLHC);
-                            cell = excelrow.Cells.Add("Position", DataType.String, oCarlosAg_Excel_Properties.gxlBRLHC);
 
-                            //Target Date
-                            cell = excelrow.Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlNLHC);
+                            if (str24GrpType != "DI")
+                            {
+                                //REPRESENTATIVE DETAILS
+                                cell = excelrow.Cells.Add("Name", DataType.String, oCarlosAg_Excel_Properties.gxlBRLHC);
+                                cell = excelrow.Cells.Add("Last Name", DataType.String, oCarlosAg_Excel_Properties.gxlBRLHC);
+                                cell = excelrow.Cells.Add("Phone", DataType.String, oCarlosAg_Excel_Properties.gxlBRLHC);
+                                cell = excelrow.Cells.Add("Phone2", DataType.String, oCarlosAg_Excel_Properties.gxlBRLHC);
+                                cell = excelrow.Cells.Add("Email", DataType.String, oCarlosAg_Excel_Properties.gxlBRLHC);
+                                cell = excelrow.Cells.Add("Position", DataType.String, oCarlosAg_Excel_Properties.gxlBRLHC);
 
-                            if (SPID != "17")
+                                //Target Date
+                                cell = excelrow.Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlNLHC);
+                            }
+
+
+                            if (SPID != "17" && str24GrpType != "IR")
                             {
                                 //GENDER DISTRIBUTION
                                 foreach (DataRow drRowsHead in dtGenderData.Rows)
@@ -1318,12 +1512,21 @@ namespace AgencyPartnerPortal_v1._0.CommonFiles
                                 }
 
                             }
-                            //QUESTIONS 
-                            foreach (DataRow drRowsHead in dsQueMast.Tables[0].Rows)
+                            if (SPID != "16" && SPID != "26" && (SPID != "24" && str24GrpType != "DI") && (SPID != "24" && str24GrpType != "DI"))
                             {
-                                cell = excelrow.Cells.Add(drRowsHead["AGYQ_DESC"].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlNLHC);
+                                //QUESTIONS 
+                                foreach (DataRow drRowsHead in dsQueMast.Tables[0].Rows)
+                                {
+                                    cell = excelrow.Cells.Add(drRowsHead["AGYQ_DESC"].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlNLHC);
+                                }
                             }
 
+                            if (SPID == "16" || SPID == "26" || (SPID == "24" && str24GrpType == "DI"))
+                            {
+                                cell = excelrow.Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlNLHC);
+                                cell = excelrow.Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlNLHC);
+                                cell = excelrow.Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlNLHC);
+                            }
                             #endregion
 
                             #region ROWS DATA BLOCK4
@@ -1352,13 +1555,22 @@ namespace AgencyPartnerPortal_v1._0.CommonFiles
                                     ReqSPID = drserDets["APR_SEREQ_SP"].ToString();
                                     ReqStatus = drserDets["SERSTATUS"].ToString();
 
-                                    DataTable _dtDemographs = JsonConvert.DeserializeObject<DataSet>(drserDets["APR_SERQ_DEMOGRAPH"].ToString()).Tables[0];
-                                    int _INDVMergeDownCount = _dtDemographs.Rows.Count - 1;
+                                    string strDemojson = "";
+                                    DataTable _dtDemographs = new DataTable();
+                                    if (SPID == "26")
+                                        _dtDemographs = JsonConvert.DeserializeObject<DataTable>(drserDets["itemDetsjson"].ToString());
+                                    else if (SPID == "24" && str24GrpType == "DI")
+                                        _dtDemographs = dtgrpReq;// JsonConvert.DeserializeObject<DataSet>(drserDets["APR_SERQ_DEMOGRAPH"].ToString().Substring(0, drserDets["APR_SERQ_DEMOGRAPH"].ToString().Length - 15) + "}").Tables[0];
+                                    else if (SPID == "24" && str24GrpType == "IR")
+                                        _dtDemographs = JsonConvert.DeserializeObject<DataSet>(drserDets["APR_SERQ_DEMOGRAPH"].ToString().Substring(0, drserDets["APR_SERQ_DEMOGRAPH"].ToString().Length - 15) + "}").Tables[0];
+                                    else
+                                        _dtDemographs = JsonConvert.DeserializeObject<DataSet>(drserDets["APR_SERQ_DEMOGRAPH"].ToString()).Tables[0];
 
+                                    int _INDVMergeDownCount = _dtDemographs.Rows.Count - 1;
 
                                     excelrow = sheet.Table.Rows.Add();
 
-                                    if (SPID == "17")
+                                    if (SPID == "17" || (SPID == "24" && str24GrpType == "DI"))
                                     {
 
                                         cell = excelrow.Cells.Add(strAgency, DataType.String, oCarlosAg_Excel_Properties.gxlNLC);
@@ -1368,7 +1580,7 @@ namespace AgencyPartnerPortal_v1._0.CommonFiles
                                         cell = excelrow.Cells.Add(ReqCompDate, DataType.String, oCarlosAg_Excel_Properties.gxlNCC);
                                         cell = excelrow.Cells.Add(strChangeOperator, DataType.String, oCarlosAg_Excel_Properties.gxlNCC);
                                     }
-                                    if (SPID == "23")
+                                    if (SPID == "23" || SPID == "16" || SPID == "26" || (SPID == "24" && str24GrpType == "IR"))
                                     {
 
                                         cell = excelrow.Cells.Add(strAgency, DataType.String, oCarlosAg_Excel_Properties.gxlNLC);
@@ -1389,12 +1601,33 @@ namespace AgencyPartnerPortal_v1._0.CommonFiles
                                         cell = excelrow.Cells.Add(strChangeOperator, DataType.String, oCarlosAg_Excel_Properties.gxlNCC);
                                         cell.MergeDown = _INDVMergeDownCount;
                                     }
-
 
 
                                     ///********************************** --- REQUEST    ---    **************************************///
                                     ///
                                     string str19IndvCount = "";
+                                    if (SPID == "16")
+                                    {
+                                        if (_dtDemographs.Rows.Count > 0)
+                                        {
+                                            int t = 0;
+                                            foreach (DataRow dr16Services in _dtDemographs.Rows)
+                                            {
+                                                if (t > 0)
+                                                {
+                                                    excelrow = sheet.Table.Rows.Add();
+                                                }
+
+                                                cell = excelrow.Cells.Add(dr16Services["ChildName"].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlBCC);
+                                                if (t > 0)
+                                                    cell.Index = 7;
+                                                cell = excelrow.Cells.Add(dr16Services["ChildLName"].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlBCC);
+                                                t++;
+                                            }
+
+
+                                        }
+                                    }
                                     if (SPID == "17")
                                     {
                                         if (serviceCnt > 0)
@@ -1502,12 +1735,173 @@ namespace AgencyPartnerPortal_v1._0.CommonFiles
                                         }
 
                                     }
+                                    if (SPID == "26")
+                                    {
+                                        if (_dtDemographs.Rows.Count > 0)
+                                        {
+                                            int t = 0;
+                                            foreach (DataRow dr16Services in _dtDemographs.Rows)
+                                            {
+                                                if (t > 0)
+                                                {
+                                                    excelrow = sheet.Table.Rows.Add();
+                                                }
+                                                if (t == 0)
+                                                {
+                                                    cell = excelrow.Cells.Add(drserDets["ChildName"].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlBCC);
+                                                    cell.MergeDown = _INDVMergeDownCount;
+                                                    cell = excelrow.Cells.Add(drserDets["ChildLName"].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlBCC);
+                                                    cell.MergeDown = _INDVMergeDownCount;
+                                                    cell = excelrow.Cells.Add(dr16Services["Item"].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlBCC);
+                                                    cell = excelrow.Cells.Add(dr16Services["Amount"].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlBCC);
+                                                    cell = excelrow.Cells.Add(dr16Services["Size"].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlBCC);
+                                                    cell = excelrow.Cells.Add(dr16Services["Addinfo"].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlBCC);
+                                                }
+                                                if (t > 0)
+                                                {
+                                                    // cell = excelrow.Cells.Add(drserDets["ChildName"].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlBCC);
+                                                    cell = excelrow.Cells.Add(dr16Services["Item"].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlBCC);
+                                                    cell.Index = 9;
+                                                    //cell = excelrow.Cells.Add(drserDets["ChildLName"].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlBCC);
+                                                    cell = excelrow.Cells.Add(dr16Services["Amount"].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlBCC);
+                                                    cell = excelrow.Cells.Add(dr16Services["Size"].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlBCC);
+                                                    cell = excelrow.Cells.Add(dr16Services["Addinfo"].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlBCC);
 
+                                                }
+                                                t++;
+
+                                            }
+                                        }
+                                    }
+                                    if (SPID == "24" && str24GrpType == "DI")
+                                    {
+                                        cell = excelrow.Cells.Add(drserDets["Servicecd"].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlBCC);
+                                    }
+                                    if (SPID == "24" && str24GrpType == "IR")
+                                    {
+                                        if (_dtDemographs.Rows.Count > 0)
+                                        {
+                                            int t = 0;
+                                            foreach (DataRow dr23Services in _dtDemographs.Rows)
+                                            {
+                                                if (t > 0)
+                                                {
+                                                    excelrow = sheet.Table.Rows.Add();
+                                                }
+
+                                                cell = excelrow.Cells.Add(dr23Services["SeasonReq"].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlBCC);
+                                                if (t > 0)
+                                                    cell.Index = 7;
+                                                cell = excelrow.Cells.Add(dr23Services["DemoGrp"].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlBCC);
+                                                cell = excelrow.Cells.Add(dr23Services["ItemDesc"].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlBCC);
+                                                cell = excelrow.Cells.Add(dr23Services["Size"].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlBCC);
+                                                cell = excelrow.Cells.Add(dr23Services["Total"].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlBCC);
+                                                cell = excelrow.Cells.Add(dr23Services["Units"].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlBCC);
+
+                                                t++;
+                                            }
+
+
+                                        }
+                                    }
                                     ///*****************************************************************************************************************///
 
                                     ///********************************** --- ACTUAL DISTRIBUTION    ---    **************************************///
 
                                     DataRow[] drReviewDets = dsReviewData.Tables[0].Select("APR_REV_REQ_ID=" + RequestID + "");
+
+                                    if (SPID == "16")
+                                    {
+
+                                        if (drReviewDets.Length > 0)
+                                        {
+                                            DataTable _dt16RevewData = drReviewDets.CopyToDataTable();
+                                            int _MiddleRowNo = MiddleRowNumb(_dtDemographs.Rows.Count);
+                                            int i = 0;
+
+                                            for (int x = 0; x < (_dtDemographs.Rows.Count); x++)
+                                            {
+                                                int _cRowID = (RowID + i);
+
+                                                DataRow[] _dr16RevData = _dt16RevewData.Select("APR_REV_CLIENT='" + _dtDemographs.Rows[x]["ChildName"].ToString() + ' ' + _dtDemographs.Rows[x]["ChildLName"].ToString() + "'");
+
+                                                if (_dr16RevData.Length > 0)
+                                                {
+                                                    string strMeasures = "";
+                                                    DataTable dtMeasures = JsonConvert.DeserializeObject<DataTable>(Admn_reqreviewandcompletion.WM_GetSPMeasures(dtServices.Rows[0]["SP2_CAMS_CODE"].ToString().Trim(), SPID, "SPMEASURES"));
+                                                    if (dtMeasures.Rows.Count > 0)
+                                                    {
+                                                        strMeasures = dtMeasures.Rows[0]["Measure"].ToString();
+                                                    }
+
+                                                    string _ServiceText = "";
+                                                    DataTable dtServMeasures = JsonConvert.DeserializeObject<DataTable>(servicerequest.WM_GetCaseSP2(_dr16RevData[0]["APR_REV_SUB_SP"].ToString()));
+                                                    if (dtServMeasures.Rows.Count > 0)
+                                                    {
+                                                        DataRow[] drR = dtServMeasures.Select("SP2_CAMS_CODE='" + _dr16RevData[0]["APR_REV_SERVICE"].ToString() + "'");
+                                                        if (drR.Length > 0)
+                                                            _ServiceText = drR[0]["CAMS_DESC"].ToString();
+                                                    }
+
+                                                    string _subSPText = "";
+                                                    DataTable dtRServices = JsonConvert.DeserializeObject<DataTable>(servicerequest.WM_GetCaseSP0(""));
+                                                    if (dtRServices.Rows.Count > 0)
+                                                    {
+                                                        DataRow[] drRS = dtRServices.Select("SP0_SERVICECODE='" + _dr16RevData[0]["APR_REV_SUB_SP"].ToString() + "'");
+                                                        if (drRS.Length > 0)
+                                                            _subSPText = drRS[0]["SP0_PBRANCH_DESC"].ToString();
+                                                    }
+
+                                                    cell = sheet.Table.Rows[_cRowID].Cells.Add(_dr16RevData[0]["APR_REV_CLIENT"].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                    cell = sheet.Table.Rows[_cRowID].Cells.Add(_subSPText, DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                    cell = sheet.Table.Rows[_cRowID].Cells.Add(_ServiceText, DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                    cell = sheet.Table.Rows[_cRowID].Cells.Add(_dr16RevData[0]["APR_REV_QTY"].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                    cell = sheet.Table.Rows[_cRowID].Cells.Add(strMeasures, DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                    cell = sheet.Table.Rows[_cRowID].Cells.Add(_dr16RevData[0]["APR_REV_UNITPRICE"].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                    cell = sheet.Table.Rows[_cRowID].Cells.Add(_dr16RevData[0]["APR_REV_TOTAL"].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                    cell = sheet.Table.Rows[_cRowID].Cells.Add(_dr16RevData[0]["APR_REV_DESC"].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                    cell = sheet.Table.Rows[_cRowID].Cells.Add(_dr16RevData[0]["SERSTATUS"].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+
+
+                                                }
+                                                else
+                                                {
+                                                    cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                    cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                    cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                    cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                    cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                    cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                    cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                    cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                    cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+
+                                                }
+
+                                                i++;
+                                            }
+                                        }
+                                        else
+                                        {
+                                            int i = 0;
+                                            for (int x = 0; x < (_dtDemographs.Rows.Count); x++)
+                                            {
+                                                int _cRowID = (RowID + i);
+                                                cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+
+                                                i++;
+                                            }
+                                        }
+
+                                    }
                                     if (SPID == "17")
                                     {
                                         if (drReviewDets.Length > 0)
@@ -1571,8 +1965,6 @@ namespace AgencyPartnerPortal_v1._0.CommonFiles
                                         }
 
                                     }
-
-
                                     if (SPID == "23")
                                     {
 
@@ -1603,12 +1995,6 @@ namespace AgencyPartnerPortal_v1._0.CommonFiles
                                                     cell = sheet.Table.Rows[_cRowID].Cells.Add(_dr23RevData[0]["APR_REV_ISGIFTCARD"].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
                                                     cell = sheet.Table.Rows[_cRowID].Cells.Add(_dr23RevData[0]["APR_REV_REP"].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
 
-                                                    //if (i == (_MiddleRowNo))
-                                                    //{
-                                                    //    cell = sheet.Table.Rows[_cRowID].Cells.Add(str19IndvCount, DataType.String, gxlGCC_sp_cr);
-                                                    //}
-                                                    //else
-                                                    //    cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, gxlGCC_sp_cr);
                                                 }
                                                 else
                                                 {
@@ -1623,13 +2009,6 @@ namespace AgencyPartnerPortal_v1._0.CommonFiles
                                                     cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
                                                     cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
                                                     cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
-
-                                                    //if (i == (_MiddleRowNo))
-                                                    //{
-                                                    //    cell = sheet.Table.Rows[_cRowID].Cells.Add(str19IndvCount, DataType.String, gxlGCC_sp_cr);
-                                                    //}
-                                                    //else
-                                                    //    cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, gxlGCC_sp_cr);
                                                 }
 
                                                 i++;
@@ -1658,11 +2037,184 @@ namespace AgencyPartnerPortal_v1._0.CommonFiles
                                         }
 
                                     }
+                                    if (SPID == "26")
+                                    {
+                                        if (drReviewDets.Length > 0)
+                                        {
+                                            DataTable _dt26RevewData = drReviewDets.CopyToDataTable();
 
+                                            int i = 0;
+                                            for (int x = 0; x < (_dtDemographs.Rows.Count); x++)
+                                            {
+                                                int _cRowID = (RowID + i);
+                                                string strSearchItem = _dtDemographs.Rows[x]["Item"].ToString() + "|" + _dtDemographs.Rows[x]["Size"].ToString() + "|" + drserDets["Gender"].ToString();
+                                                DataRow[] _dr26RevData = _dt26RevewData.Select("APR_REV_CLIENT='" + drserDets["ChildName"].ToString() + ' ' + drserDets["ChildLName"].ToString() + "' AND APR_REV_ITEM_DESC='" + strSearchItem + "'");
+                                                if (_dr26RevData.Length > 0)
+                                                {
+                                                    string strMeasures = "";
+                                                    DataTable dtMeasures = JsonConvert.DeserializeObject<DataTable>(Admn_reqreviewandcompletion.WM_GetSPMeasures(_dr26RevData[0]["APR_REV_SERVICE"].ToString().Trim(), _dr26RevData[0]["APR_REV_SUB_SP"].ToString(), "SPMEASURES"));
+                                                    if (dtMeasures.Rows.Count > 0)
+                                                    {
+                                                        strMeasures = dtMeasures.Rows[0]["Measure"].ToString();
+                                                    }
+
+                                                    string _ServiceText = "";
+                                                    DataTable dtServMeasures = JsonConvert.DeserializeObject<DataTable>(servicerequest.WM_GetCaseSP2(_dr26RevData[0]["APR_REV_SUB_SP"].ToString()));
+                                                    if (dtServMeasures.Rows.Count > 0)
+                                                    {
+                                                        DataRow[] drR = dtServMeasures.Select("SP2_CAMS_CODE='" + _dr26RevData[0]["APR_REV_SERVICE"].ToString() + "'");
+                                                        if (drR.Length > 0)
+                                                            _ServiceText = drR[0]["CAMS_DESC"].ToString();
+                                                    }
+                                                    string _subSPText = "";
+                                                    DataTable dtRServices = JsonConvert.DeserializeObject<DataTable>(servicerequest.WM_GetCaseSP0(""));
+                                                    if (dtRServices.Rows.Count > 0)
+                                                    {
+                                                        DataRow[] drRS = dtRServices.Select("SP0_SERVICECODE='" + _dr26RevData[0]["APR_REV_SUB_SP"].ToString() + "'");
+                                                        if (drRS.Length > 0)
+                                                            _subSPText = drRS[0]["SP0_PBRANCH_DESC"].ToString();
+                                                    }
+
+                                                    cell = sheet.Table.Rows[_cRowID].Cells.Add(_dr26RevData[0]["APR_REV_CLIENT"].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                    cell = sheet.Table.Rows[_cRowID].Cells.Add(_dr26RevData[0]["APR_REV_ITEM_DESC"].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                    cell = sheet.Table.Rows[_cRowID].Cells.Add(_subSPText, DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                    cell = sheet.Table.Rows[_cRowID].Cells.Add(_ServiceText, DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                    cell = sheet.Table.Rows[_cRowID].Cells.Add(_dr26RevData[0]["APR_REV_QTY"].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                    cell = sheet.Table.Rows[_cRowID].Cells.Add(strMeasures, DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                    cell = sheet.Table.Rows[_cRowID].Cells.Add(_dr26RevData[0]["APR_REV_UNITPRICE"].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                    cell = sheet.Table.Rows[_cRowID].Cells.Add(_dr26RevData[0]["APR_REV_TOTAL"].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                    cell = sheet.Table.Rows[_cRowID].Cells.Add(_dr26RevData[0]["APR_REV_DESC"].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                    cell = sheet.Table.Rows[_cRowID].Cells.Add(_dr26RevData[0]["SERSTATUS"].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                }
+                                                else
+                                                {
+                                                    cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                    cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                    cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                    cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                    cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                    cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                    cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                    cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                    cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                    cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                }
+                                                i++;
+                                            }
+                                        }
+                                        else
+                                        {
+                                            int i = 0;
+                                            for (int x = 0; x < (_dtDemographs.Rows.Count); x++)
+                                            {
+                                                int _cRowID = (RowID + i);
+                                                cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                i++;
+                                            }
+                                        }
+                                    }
+                                    if (SPID == "24" && str24GrpType == "IR")
+                                    {
+
+                                        if (drReviewDets.Length > 0)
+                                        {
+                                            DataTable _dt24RevewData = drReviewDets.CopyToDataTable();
+                                            int i = 0;
+                                            for (int x = 0; x < (_dtDemographs.Rows.Count); x++)
+                                            {
+                                                int _cRowID = (RowID + i);
+
+                                                string _fItemDesc = _dtDemographs.Rows[x]["ItemDesc"].ToString() == "-" ? "" : (_dtDemographs.Rows[x]["ItemDesc"].ToString()) + "|";
+                                                string _fSeason = _dtDemographs.Rows[x]["SeasonReq"].ToString() == "-" ? "" : (_dtDemographs.Rows[x]["SeasonReq"].ToString()) + "|";
+                                                string _fDemoGrp = _dtDemographs.Rows[x]["DemoGrp"].ToString() == "-" ? "" : (_dtDemographs.Rows[x]["DemoGrp"].ToString()) + "|";
+                                                string _fSize = _dtDemographs.Rows[x]["Size"].ToString() == "-" ? "" : (_dtDemographs.Rows[x]["Size"].ToString()) + "|";
+
+                                                string strSearchItem = (_fItemDesc + _fSeason + _fDemoGrp + _fSize);
+                                                strSearchItem = strSearchItem.Remove(strSearchItem.Length - 1, 1);
+                                                DataRow[] _dr24IRevData = _dt24RevewData.Select("APR_REV_ITEM_DESC='" + strSearchItem + "'");
+                                                if (_dr24IRevData.Length > 0)
+                                                {
+                                                    
+
+                                                    string _ServiceText = "";
+                                                    DataTable dtServicesData = JsonConvert.DeserializeObject<DataTable>(servicerequest.WM_GetCaseSP2(SPID));
+                                                    if (dtServicesData.Rows.Count > 0)
+                                                    {
+                                                        DataRow[] drR = dtServicesData.Select("SP2_CAMS_CODE='" + _dr24IRevData[0]["APR_REV_SERVICE"].ToString() + "'");
+                                                        if (drR.Length > 0)
+                                                            _ServiceText = drR[0]["CAMS_DESC"].ToString();
+                                                    }
+
+                                                    string strMeasures = "";
+                                                    DataTable dtMeasures = JsonConvert.DeserializeObject<DataTable>(Admn_reqreviewandcompletion.WM_GetSPMeasures(_dr24IRevData[0]["APR_REV_SERVICE"].ToString().Trim(),SPID, "SPMEASURES"));
+                                                    if (dtMeasures.Rows.Count > 0)
+                                                    {
+                                                        strMeasures = dtMeasures.Rows[0]["Measure"].ToString();
+                                                    }
+                                                    //string _subSPText = "";
+                                                    //DataTable dtRServices = JsonConvert.DeserializeObject<DataTable>(servicerequest.WM_GetCaseSP0(""));
+                                                    //if (dtRServices.Rows.Count > 0)
+                                                    //{
+                                                    //    DataRow[] drRS = dtRServices.Select("SP0_SERVICECODE='" + _dr26RevData[0]["APR_REV_SUB_SP"].ToString() + "'");
+                                                    //    if (drRS.Length > 0)
+                                                    //        _subSPText = drRS[0]["SP0_PBRANCH_DESC"].ToString();
+                                                    //}
+
+                                                    cell = sheet.Table.Rows[_cRowID].Cells.Add(_dr24IRevData[0]["APR_REV_ITEM_DESC"].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                    cell = sheet.Table.Rows[_cRowID].Cells.Add(_ServiceText, DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                    cell = sheet.Table.Rows[_cRowID].Cells.Add(_dr24IRevData[0]["APR_REV_QTY"].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                    cell = sheet.Table.Rows[_cRowID].Cells.Add(strMeasures.ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                    cell = sheet.Table.Rows[_cRowID].Cells.Add(_dr24IRevData[0]["APR_REV_UNITPRICE"].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                    cell = sheet.Table.Rows[_cRowID].Cells.Add(_dr24IRevData[0]["APR_REV_TOTAL"].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                    cell = sheet.Table.Rows[_cRowID].Cells.Add(_dr24IRevData[0]["APR_REV_DESC"].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                    cell = sheet.Table.Rows[_cRowID].Cells.Add(_dr24IRevData[0]["SERSTATUS"].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                }
+                                                else
+                                                {
+                                                    cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                    cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                    cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                    cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                    cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                    cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                    cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                    cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                   
+                                                }
+                                                i++;
+                                            }
+                                        }
+                                        else
+                                        {
+                                            int i = 0;
+                                            for (int x = 0; x < (_dtDemographs.Rows.Count); x++)
+                                            {
+                                                int _cRowID = (RowID + i);
+                                                cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlGCC);
+                                                i++;
+                                            }
+                                        }
+                                    }
                                     ///*****************************************************************************************************************///
 
                                     ///****************** SET FIXED EXCEL ROW ************************////
-                                    if (SPID == "23")
+                                    if (SPID == "23" || SPID == "16" || SPID == "26" || (SPID == "24" && str24GrpType == "IR"))
                                         excelrow = sheet.Table.Rows[RowID];
                                     ////******************************************////
 
@@ -1678,7 +2230,7 @@ namespace AgencyPartnerPortal_v1._0.CommonFiles
                                         cell = excelrow.Cells.Add(drserDets["REPEMAIL"].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlBRLC);
                                         cell = excelrow.Cells.Add(drserDets["REPPOST"].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlBRLC);
                                     }
-                                    if (SPID == "23")
+                                    if (SPID == "23" || SPID == "16" || SPID == "26" || (SPID == "24" && str24GrpType == "IR"))
                                     {
                                         cell = excelrow.Cells.Add(drserDets["REPFNAME"].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlBRLC);
                                         cell.MergeDown = _INDVMergeDownCount;
@@ -1698,16 +2250,142 @@ namespace AgencyPartnerPortal_v1._0.CommonFiles
                                     ///
                                     if (SPID == "17")
                                         cell = excelrow.Cells.Add(Convert.ToDateTime(drserDets["APR_SEREQ_TARGET_DT"].ToString()).ToString("MM/dd/yyyy"), DataType.String, oCarlosAg_Excel_Properties.gxlNCC);
-                                    if (SPID == "23")
+                                    if (SPID == "23" || SPID == "16" || SPID == "26" || (SPID == "24" && str24GrpType == "IR"))
                                     {
                                         cell = excelrow.Cells.Add(Convert.ToDateTime(drserDets["APR_SEREQ_TARGET_DT"].ToString()).ToString("MM/dd/yyyy"), DataType.String, oCarlosAg_Excel_Properties.gxlNCC);
                                         cell.MergeDown = _INDVMergeDownCount;
                                     }
 
+                                    if (SPID == "16")
+                                    {
+                                        DataRow[] drDetshead = dtINDVDemographData.Select("APR_SEREQ_ID='" + RequestID + "'");
+                                        if (drDetshead.Length > 0)
+                                        {
+                                            int t = 0;
+                                            foreach (DataRow dr in drDetshead)
+                                            {
+                                                int _cRowID = (RowID + t);
+                                                //GENDER DISTRIBUTION
+                                                int x = 0;
+                                                foreach (DataRow drRowsHead in dtGenderData.Rows)
+                                                {
+                                                    if (t > 0 && x == 1)
+                                                        cell.Index = 25;
+
+                                                    if (t > 0)
+                                                        cell = excelrow.Cells.Add();
+
+                                                    string code = "gen_" + drRowsHead["Code"].ToString();
+                                                    if (dr[code].ToString() != "")
+                                                    {
+                                                        cell = sheet.Table.Rows[_cRowID].Cells.Add(dr[code].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlNCC);
+                                                        x++;
+                                                    }
+                                                    else
+                                                    {
+                                                        cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlNCC);
+                                                        x++;
+                                                    }
+                                                }
+
+                                                // AGE DISTRIBUTION
+                                                foreach (DataRow drRowsHead in dtAgeData.Rows)
+                                                {
+                                                    if (t > 0)
+                                                        cell = excelrow.Cells.Add();
+
+                                                    string code = "age_" + drRowsHead["id"].ToString();
+                                                    // cell = excelrow.Cells.Add(dr[code].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlNCC);
+                                                    if (dr[code].ToString() != "")
+                                                    {
+                                                        cell = sheet.Table.Rows[_cRowID].Cells.Add(dr[code].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlNCC);
+                                                    }
+                                                    else
+                                                    {
+                                                        cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlNCC);
+                                                    }
+                                                }
+
+                                                ////Race DISTRIBUTION
+                                                foreach (DataRow drRowsHead in dtRaceData.Rows)
+                                                {
+                                                    if (t > 0)
+                                                        cell = excelrow.Cells.Add();
+
+                                                    string code = "rac_" + drRowsHead["code"].ToString();
+
+                                                    if (dr[code].ToString() != "")
+                                                        cell = sheet.Table.Rows[_cRowID].Cells.Add(dr[code].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlNCC);
+                                                    else
+                                                        cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlNCC);
+
+                                                }
+
+
+                                                //Ethnicity DISTRIBUTION
+                                                foreach (DataRow drRowsHead in dtEthnicityData.Rows)
+                                                {
+                                                    if (t > 0)
+                                                        cell = excelrow.Cells.Add();
+
+                                                    string code = "eth_" + drRowsHead["code"].ToString();
+                                                    // cell = excelrow.Cells.Add(dr[code].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlNCC);
+
+                                                    if (dr[code].ToString() != "")
+                                                        cell = sheet.Table.Rows[_cRowID].Cells.Add(dr[code].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlNCC);
+                                                    else
+                                                        cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlNCC);
+
+                                                }
+
+
+                                                //County DISTRIBUTION
+                                                foreach (DataRow drRowsHead in dtCountyData.Rows)
+                                                {
+                                                    if (t > 0)
+                                                        cell = excelrow.Cells.Add();
+
+                                                    string code = "cou_" + drRowsHead["code"].ToString();
+                                                    //cell = excelrow.Cells.Add(dr[code].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlNCC);
+
+                                                    if (dr[code].ToString() != "")
+                                                        cell = sheet.Table.Rows[_cRowID].Cells.Add(dr[code].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlNCC);
+                                                    else
+                                                        cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlNCC);
+
+                                                }
+
+
+
+                                                //City DISTRIBUTION
+                                                foreach (DataRow drRowsHead in dtCityData.Rows)
+                                                {
+                                                    if (t > 0)
+                                                        cell = excelrow.Cells.Add();
+
+                                                    string code = "cit_" + drRowsHead["SQR_RESP_CODE"].ToString().Trim().Replace(" ", "_");
+                                                    // cell = excelrow.Cells.Add(dr[code].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlNCC);
+                                                    if (dr[code].ToString() != "")
+                                                        cell = sheet.Table.Rows[_cRowID].Cells.Add(dr[code].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlNCC);
+                                                    else
+                                                        cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlNCC);
+
+                                                }
+
+
+                                                cell = sheet.Table.Rows[_cRowID].Cells.Add(dr["freelunch"].ToString() == "Y" ? "Yes" : "No", DataType.String, oCarlosAg_Excel_Properties.gxlNCC);
+                                                cell = sheet.Table.Rows[_cRowID].Cells.Add(dr["isclientAPC"].ToString() == "Y" ? "Yes" : "No", DataType.String, oCarlosAg_Excel_Properties.gxlNCC);
+                                                cell = sheet.Table.Rows[_cRowID].Cells.Add(dr["exphomeless"].ToString() == "Y" ? "Yes" : "No", DataType.String, oCarlosAg_Excel_Properties.gxlNCC);
+
+
+                                                t++;
+                                            }
+                                        }
+                                    }
 
                                     if (SPID == "23")
                                     {
-                                        DataRow[] drDetshead = dt23DemographData.Select("APR_SEREQ_ID='" + RequestID + "'");
+                                        DataRow[] drDetshead = dtINDVDemographData.Select("APR_SEREQ_ID='" + RequestID + "'");
                                         if (drDetshead.Length > 0)
                                         {
                                             //cell = excelrow.Cells.Add();
@@ -1846,30 +2524,206 @@ namespace AgencyPartnerPortal_v1._0.CommonFiles
 
                                                 }
 
+
+                                                if (t == 0)
+                                                {
+                                                    if (SPID == "23")
+                                                    {
+                                                        foreach (DataRow drRowsQ in dsQueMast.Tables[0].Rows)
+                                                        {
+                                                            string code = "que_" + drRowsQ["AGYQ_CODE"].ToString();
+                                                            cell = sheet.Table.Rows[RowID].Cells.Add(drserDets[code].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlNLC);
+                                                            cell.MergeDown = _INDVMergeDownCount;
+
+                                                        }
+                                                    }
+                                                }
+
                                                 t++;
                                             }
                                         }
                                     }
-                                    // if (SPID == "23")
-                                    //  excelrow = sheet.Table.Rows[RowID];
 
-                                    //QUESTIONS DETAILS
-                                    foreach (DataRow drRowsQ in dsQueMast.Tables[0].Rows)
+                                    if (SPID == "26")
                                     {
-                                        string code = "que_" + drRowsQ["AGYQ_CODE"].ToString();
-                                        if (SPID == "17")
-                                            cell = excelrow.Cells.Add(drserDets[code].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlNLC);
-                                        if (SPID == "23")
+                                        DataRow dr = drserDets;
+                                        int t = 0;
+
+                                        int _cRowID = (RowID + t);
+
+                                        //GENDER DISTRIBUTION
+                                        foreach (DataRow drRowsHead in dtGenderData.Rows)
                                         {
-                                            cell = sheet.Table.Rows[RowID].Cells.Add(drserDets[code].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlNLC);
+                                            string code = "gen_" + drRowsHead["Code"].ToString();
+                                            if (dr[code].ToString() != "")
+                                            {
+                                                cell = sheet.Table.Rows[_cRowID].Cells.Add(dr[code].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlNCC);
+                                                cell.MergeDown = _INDVMergeDownCount;
+                                            }
+                                            else
+                                            {
+                                                cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlNCC);
+                                                cell.MergeDown = _INDVMergeDownCount;
+                                            }
+                                        }
+
+                                        // AGE DISTRIBUTION
+                                        foreach (DataRow drRowsHead in dtAgeData.Rows)
+                                        {
+                                            string code = "age_" + drRowsHead["id"].ToString();
+                                            // cell = excelrow.Cells.Add(dr[code].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlNCC);
+                                            if (dr[code].ToString() != "")
+                                                cell = sheet.Table.Rows[_cRowID].Cells.Add(dr[code].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlNCC);
+                                            else
+                                                cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlNCC);
+
                                             cell.MergeDown = _INDVMergeDownCount;
+
+                                        }
+
+                                        ////Race DISTRIBUTION
+                                        foreach (DataRow drRowsHead in dtRaceData.Rows)
+                                        {
+
+                                            string code = "rac_" + drRowsHead["code"].ToString();
+
+                                            if (dr[code].ToString() != "")
+                                                cell = sheet.Table.Rows[_cRowID].Cells.Add(dr[code].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlNCC);
+                                            else
+                                                cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlNCC);
+
+
+                                            cell.MergeDown = _INDVMergeDownCount;
+
+                                        }
+
+
+                                        //Ethnicity DISTRIBUTION
+                                        foreach (DataRow drRowsHead in dtEthnicityData.Rows)
+                                        {
+
+
+                                            string code = "eth_" + drRowsHead["code"].ToString();
+                                            // cell = excelrow.Cells.Add(dr[code].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlNCC);
+
+                                            if (dr[code].ToString() != "")
+                                                cell = sheet.Table.Rows[_cRowID].Cells.Add(dr[code].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlNCC);
+                                            else
+                                                cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlNCC);
+
+
+                                            cell.MergeDown = _INDVMergeDownCount;
+
+                                        }
+
+
+                                        //County DISTRIBUTION
+                                        foreach (DataRow drRowsHead in dtCountyData.Rows)
+                                        {
+                                            if (t > 0)
+                                                cell = excelrow.Cells.Add();
+
+                                            string code = "cou_" + drRowsHead["code"].ToString();
+
+                                            if (dr[code].ToString() != "")
+                                                cell = sheet.Table.Rows[_cRowID].Cells.Add(dr[code].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlNCC);
+                                            else
+                                                cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlNCC);
+
+
+                                            cell.MergeDown = _INDVMergeDownCount;
+
+                                        }
+
+
+
+                                        //City DISTRIBUTION
+                                        foreach (DataRow drRowsHead in dtCityData.Rows)
+                                        {
+                                            string code = "cit_" + drRowsHead["SQR_RESP_CODE"].ToString().Trim().Replace(" ", "_");
+                                            if (dr[code].ToString() != "")
+                                                cell = sheet.Table.Rows[_cRowID].Cells.Add(dr[code].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlNCC);
+                                            else
+                                                cell = sheet.Table.Rows[_cRowID].Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlNCC);
+
+
+                                            cell.MergeDown = _INDVMergeDownCount;
+
+                                        }
+
+                                        cell = sheet.Table.Rows[_cRowID].Cells.Add(dr["freelunch"].ToString() == "Y" ? "Yes" : "No", DataType.String, oCarlosAg_Excel_Properties.gxlNCC);
+                                        cell.MergeDown = _INDVMergeDownCount;
+                                        cell = sheet.Table.Rows[_cRowID].Cells.Add(dr["isclientAPC"].ToString() == "Y" ? "Yes" : "No", DataType.String, oCarlosAg_Excel_Properties.gxlNCC);
+                                        cell.MergeDown = _INDVMergeDownCount;
+                                        cell = sheet.Table.Rows[_cRowID].Cells.Add(dr["exphomeless"].ToString() == "Y" ? "Yes" : "No", DataType.String, oCarlosAg_Excel_Properties.gxlNCC);
+                                        cell.MergeDown = _INDVMergeDownCount;
+                                    }
+
+                                    if (SPID == "24" && str24GrpType == "DI")
+                                    {
+
+                                        ////GENDER DISTRIBUTION
+                                        foreach (DataRow drRowsHead in dtGenderData.Rows)
+                                        {
+                                            string code = "gen_" + drRowsHead["Code"].ToString();
+                                            cell = excelrow.Cells.Add(drserDets[code].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlNCC);
+                                        }
+
+                                        //AGE DISTRIBUTION
+                                        foreach (DataRow drRowsHead in dtAgeData.Rows)
+                                        {
+                                            string code = "age_" + drRowsHead["id"].ToString();
+                                            cell = excelrow.Cells.Add(drserDets[code].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlNCC);
+                                        }
+
+                                        //Race DISTRIBUTION
+                                        foreach (DataRow drRowsHead in dtRaceData.Rows)
+                                        {
+                                            string code = "rac_" + drRowsHead["code"].ToString();
+                                            cell = excelrow.Cells.Add(drserDets[code].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlNCC);
+                                        }
+
+                                        //Ethnicity DISTRIBUTION
+                                        foreach (DataRow drRowsHead in dtEthnicityData.Rows)
+                                        {
+                                            string code = "eth_" + drRowsHead["code"].ToString();
+                                            cell = excelrow.Cells.Add(drserDets[code].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlNCC);
+                                        }
+
+                                        //County DISTRIBUTION
+                                        foreach (DataRow drRowsHead in dtCountyData.Rows)
+                                        {
+                                            string code = "cou_" + drRowsHead["code"].ToString();
+                                            cell = excelrow.Cells.Add(drserDets[code].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlNCC);
+
+                                        }
+                                        //City DISTRIBUTION
+                                        foreach (DataRow drRowsHead in dtCityData.Rows)
+                                        {
+                                            string code = "cit_" + drRowsHead["SQR_RESP_CODE"].ToString().Trim().Replace(" ", "_");
+                                            cell = excelrow.Cells.Add(drserDets[code].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlNCC);
+
+                                        }
+
+                                        cell = excelrow.Cells.Add(drserDets["freelunch"].ToString() == "Y" ? "Yes" : "No", DataType.String, oCarlosAg_Excel_Properties.gxlNCC);
+                                        cell = excelrow.Cells.Add(drserDets["isclientAPC"].ToString() == "Y" ? "Yes" : "No", DataType.String, oCarlosAg_Excel_Properties.gxlNCC);
+                                        cell = excelrow.Cells.Add(drserDets["exphomeless"].ToString() == "Y" ? "Yes" : "No", DataType.String, oCarlosAg_Excel_Properties.gxlNCC);
+                                    }
+                                    //QUESTIONS DETAILS
+                                    if (SPID == "17")
+                                    {
+                                        foreach (DataRow drRowsQ in dsQueMast.Tables[0].Rows)
+                                        {
+                                            string code = "que_" + drRowsQ["AGYQ_CODE"].ToString();
+
+                                            cell = excelrow.Cells.Add(drserDets[code].ToString(), DataType.String, oCarlosAg_Excel_Properties.gxlNLC);
                                         }
                                     }
 
 
                                     excelrow = sheet.Table.Rows.Add();
-                                    excelrow.Height = 5;
-                                    cell = excelrow.Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlNLC);
+                                    excelrow.Height = 1;
+                                    cell = excelrow.Cells.Add("", DataType.String, oCarlosAg_Excel_Properties.gxlEMPTC);
                                     cell.MergeAcross = Mergcells;
 
                                     ///**************************  SET ROWID *********************************////
@@ -1889,6 +2743,8 @@ namespace AgencyPartnerPortal_v1._0.CommonFiles
                                     //**************************************************************************///
                                 }
                                 RowID = (TempRowCount == 0 ? 5 : TempRowCount);
+                                //if (SPID == "26")
+                                //    excelrow = sheet.Table.Rows[RowID];
                                 chkIsfirst++;
                             }
 
@@ -2024,7 +2880,13 @@ namespace AgencyPartnerPortal_v1._0.CommonFiles
 
                 DataRow[] drQA = dtQuesAns.Select("APRQUES_REQ_ID=" + strReqID + "");
 
-                DataSet _dtDemographTbls = JsonConvert.DeserializeObject<DataSet>(dr["APR_SERQ_DEMOGRAPH"].ToString());
+                // DataSet _dtDemographTbls = JsonConvert.DeserializeObject<DataSet>(dr["APR_SERQ_DEMOGRAPH"].ToString());
+                DataSet _dtDemographTbls = new DataSet();
+                if (_SPID == "24")
+                    _dtDemographTbls = JsonConvert.DeserializeObject<DataSet>(dr["APR_SERQ_DEMOGRAPH"].ToString().Substring(0, dr["APR_SERQ_DEMOGRAPH"].ToString().Length - 15) + "}");
+                else
+                    _dtDemographTbls = JsonConvert.DeserializeObject<DataSet>(dr["APR_SERQ_DEMOGRAPH"].ToString());
+
                 if (_dtDemographTbls.Tables.Count > 0)
                 {
                     if (_strGrpType == "G")
@@ -2089,36 +2951,85 @@ namespace AgencyPartnerPortal_v1._0.CommonFiles
 
                 }
 
+
             }
 
             return dtResult;
 
         }
-
-        public DataTable BuildDataSet23WithAllTables(DataTable dtTemp, DataTable dtQuesAns, DataSet _dsMasters, string _SPID, string _strGrpType)
+        string str24GrpType = "";
+        public DataTable BuildDataSetINDVWithAllTables(DataTable dtTemp, DataTable dtQuesAns, DataSet _dsMasters, string _SPID, string _strGrpType)
         {
             DataTable dtResult = new DataTable();
             //dtResult = dtTemp.Copy();
 
-            DataTable dt23Data = new DataTable();
+            DataTable dtIData = new DataTable();
+
 
             int i = 0;
             foreach (DataRow dr in dtTemp.Rows)
             {
                 string strReqID = dr["APR_SEREQ_ID"].ToString();
+                string AGYNAME = dr["AGYNAME"].ToString();
+                string APR_SEREQ_DATE_ADD = dr["APR_SEREQ_DATE_ADD"].ToString();
+                string APR_SEREQ_DATE_LSTC = dr["APR_SEREQ_DATE_LSTC"].ToString();
+                string APR_SEREQ_LSTC_OPERATOR = dr["APR_SEREQ_LSTC_OPERATOR"].ToString();
+                string APR_SEREQ_SP_TYPE = dr["APR_SEREQ_SP_TYPE"].ToString();
+                string APR_SEREQ_SP = dr["APR_SEREQ_SP"].ToString();
+                string SERSTATUS = dr["SERSTATUS"].ToString();
+                string REPFNAME = dr["REPFNAME"].ToString();
+                string REPLNAME = dr["REPLNAME"].ToString();
+                string PHONE1 = dr["PHONE1"].ToString();
+                string PHONE2 = dr["PHONE2"].ToString();
+                string REPEMAIL = dr["REPEMAIL"].ToString();
+                string REPPOST = dr["REPPOST"].ToString();
+                string APR_SEREQ_TARGET_DT = dr["APR_SEREQ_TARGET_DT"].ToString();
 
                 DataRow[] drQA = dtQuesAns.Select("APRQUES_REQ_ID=" + strReqID + "");
 
-                DataSet _dtDemographTbls = JsonConvert.DeserializeObject<DataSet>(dr["APR_SERQ_DEMOGRAPH"].ToString());
+                DataSet _dtDemographTbls = new DataSet();
+                if (_SPID == "24")
+                {
+                    _dtDemographTbls = JsonConvert.DeserializeObject<DataSet>(dr["APR_SERQ_DEMOGRAPH"].ToString().Substring(0, dr["APR_SERQ_DEMOGRAPH"].ToString().Length - 15) + "}");
+
+                    int startIndex = dr["APR_SERQ_DEMOGRAPH"].ToString().Length - 10;
+                    int endIndex = dr["APR_SERQ_DEMOGRAPH"].ToString().Length - 4;
+                    str24GrpType = dr["APR_SERQ_DEMOGRAPH"].ToString().Substring(endIndex);
+                    str24GrpType = str24GrpType.Substring(0, 2);
+                }
+                else
+                    _dtDemographTbls = JsonConvert.DeserializeObject<DataSet>(dr["APR_SERQ_DEMOGRAPH"].ToString());
+
+
                 _dtDemographTbls.Tables[0].Columns.Add("APR_SEREQ_ID", typeof(System.String));
+
+                if (_SPID == "26" || (_SPID == "24" && str24GrpType == "DI"))
+                {
+                    _dtDemographTbls.Tables[0].Columns.Add("AGYNAME", typeof(System.String));
+                    _dtDemographTbls.Tables[0].Columns.Add("APR_SEREQ_DATE_ADD", typeof(System.String));
+                    _dtDemographTbls.Tables[0].Columns.Add("APR_SEREQ_DATE_LSTC", typeof(System.String));
+                    _dtDemographTbls.Tables[0].Columns.Add("APR_SEREQ_LSTC_OPERATOR", typeof(System.String));
+                    _dtDemographTbls.Tables[0].Columns.Add("APR_SEREQ_SP_TYPE", typeof(System.String));
+                    _dtDemographTbls.Tables[0].Columns.Add("APR_SEREQ_SP", typeof(System.String));
+                    _dtDemographTbls.Tables[0].Columns.Add("SERSTATUS", typeof(System.String));
+                    _dtDemographTbls.Tables[0].Columns.Add("REPFNAME", typeof(System.String));
+                    _dtDemographTbls.Tables[0].Columns.Add("REPLNAME", typeof(System.String));
+                    _dtDemographTbls.Tables[0].Columns.Add("PHONE1", typeof(System.String));
+                    _dtDemographTbls.Tables[0].Columns.Add("PHONE2", typeof(System.String));
+                    _dtDemographTbls.Tables[0].Columns.Add("REPEMAIL", typeof(System.String));
+                    _dtDemographTbls.Tables[0].Columns.Add("REPPOST", typeof(System.String));
+
+                    _dtDemographTbls.Tables[0].Columns.Add("APR_SEREQ_TARGET_DT", typeof(System.String));
+                }
+
                 if (_dtDemographTbls.Tables.Count > 0)
                 {
                     if (i == 0)
                     {
-                        if ((_strGrpType == "I" && _SPID == "23"))
+                        if ((_strGrpType == "I" && _SPID == "23") || (_strGrpType == "I" && _SPID == "16") || (_strGrpType == "I" && _SPID == "26") || (str24GrpType == "DI" && _SPID == "24"))
                         {
 
-                            dt23Data = _dtDemographTbls.Tables[0].Copy();
+                            dtIData = _dtDemographTbls.Tables[0].Copy();
                             /* Masters Table */
                             DataTable dtGenderData = _dsMasters.Tables["Gender"];
                             DataTable dtAgeData = CommonFiles.Commonfunctions.BuildAgeMaster(_SPID);
@@ -2130,18 +3041,35 @@ namespace AgencyPartnerPortal_v1._0.CommonFiles
 
                             /*Add Pivot Columns*/
 
-                            dt23Data = AddPivotColumns(dt23Data, dtGenderData, "Code", "gen");
-                            dt23Data = AddPivotColumns(dt23Data, dtAgeData, "id", "age");
-                            dt23Data = AddPivotColumns(dt23Data, dtRaceData, "Code", "rac");
-                            dt23Data = AddPivotColumns(dt23Data, dtEthnicityData, "Code", "eth");
-                            dt23Data = AddPivotColumns(dt23Data, dtCountyData, "Code", "cou");
-                            dt23Data = AddPivotColumns(dt23Data, dtCityData, "SQR_RESP_CODE", "cit");
-                            dt23Data = AddPivotColumns(dt23Data, dtLanguagesData, "Code", "lan");
+                            dtIData = AddPivotColumns(dtIData, dtGenderData, "Code", "gen");
+                            dtIData = AddPivotColumns(dtIData, dtAgeData, "id", "age");
+                            dtIData = AddPivotColumns(dtIData, dtRaceData, "Code", "rac");
+                            dtIData = AddPivotColumns(dtIData, dtEthnicityData, "Code", "eth");
+                            dtIData = AddPivotColumns(dtIData, dtCountyData, "Code", "cou");
+                            dtIData = AddPivotColumns(dtIData, dtCityData, "SQR_RESP_CODE", "cit");
+                            dtIData = AddPivotColumns(dtIData, dtLanguagesData, "Code", "lan");
 
 
-                            foreach (DataRow _dr in dt23Data.Rows)
+                            foreach (DataRow _dr in dtIData.Rows)
                             {
                                 _dr["APR_SEREQ_ID"] = strReqID;
+                                if (_SPID == "26" || (_SPID == "24" && str24GrpType == "DI"))
+                                {
+                                    _dr["AGYNAME"] = AGYNAME;
+                                    _dr["APR_SEREQ_DATE_ADD"] = APR_SEREQ_DATE_ADD;
+                                    _dr["APR_SEREQ_DATE_LSTC"] = APR_SEREQ_DATE_LSTC;
+                                    _dr["APR_SEREQ_LSTC_OPERATOR"] = APR_SEREQ_LSTC_OPERATOR;
+                                    _dr["APR_SEREQ_SP_TYPE"] = APR_SEREQ_SP_TYPE;
+                                    _dr["APR_SEREQ_SP"] = APR_SEREQ_SP;
+                                    _dr["SERSTATUS"] = SERSTATUS;
+                                    _dr["REPFNAME"] = REPFNAME;
+                                    _dr["REPLNAME"] = REPLNAME;
+                                    _dr["PHONE1"] = PHONE1;
+                                    _dr["PHONE2"] = PHONE2;
+                                    _dr["REPEMAIL"] = REPEMAIL;
+                                    _dr["REPPOST"] = REPPOST;
+                                    _dr["APR_SEREQ_TARGET_DT"] = APR_SEREQ_TARGET_DT;
+                                }
                             }
                         }
                     }
@@ -2150,7 +3078,24 @@ namespace AgencyPartnerPortal_v1._0.CommonFiles
                         foreach (DataRow _dr in _dtDemographTbls.Tables[0].Rows)
                         {
                             _dr["APR_SEREQ_ID"] = strReqID;
-                            dt23Data.ImportRow(_dr);
+                            if (_SPID == "26" || (_SPID == "24" && str24GrpType == "DI"))
+                            {
+                                _dr["AGYNAME"] = AGYNAME;
+                                _dr["APR_SEREQ_DATE_ADD"] = APR_SEREQ_DATE_ADD;
+                                _dr["APR_SEREQ_DATE_LSTC"] = APR_SEREQ_DATE_LSTC;
+                                _dr["APR_SEREQ_LSTC_OPERATOR"] = APR_SEREQ_LSTC_OPERATOR;
+                                _dr["APR_SEREQ_SP_TYPE"] = APR_SEREQ_SP_TYPE;
+                                _dr["APR_SEREQ_SP"] = APR_SEREQ_SP;
+                                _dr["SERSTATUS"] = SERSTATUS;
+                                _dr["REPFNAME"] = REPFNAME;
+                                _dr["REPLNAME"] = REPLNAME;
+                                _dr["PHONE1"] = PHONE1;
+                                _dr["PHONE2"] = PHONE2;
+                                _dr["REPEMAIL"] = REPEMAIL;
+                                _dr["REPPOST"] = REPPOST;
+                                _dr["APR_SEREQ_TARGET_DT"] = APR_SEREQ_TARGET_DT;
+                            }
+                            dtIData.ImportRow(_dr);
 
                         }
                     }
@@ -2159,7 +3104,7 @@ namespace AgencyPartnerPortal_v1._0.CommonFiles
                 i++;
             }
 
-            foreach (DataRow _dr in dt23Data.Rows)
+            foreach (DataRow _dr in dtIData.Rows)
             {
 
                 string strGValue = _dr["Gender"].ToString();
@@ -2178,13 +3123,21 @@ namespace AgencyPartnerPortal_v1._0.CommonFiles
                 string strCityValue = _dr["City"].ToString();
                 _dr["cit_" + strCityValue.ToString().Trim().Replace(" ", "_")] = "1";
 
-                string strCounValue = _dr["County"].ToString();
-                _dr["cou_" + strCounValue] = "1";
+                if (_SPID == "24")
+                {
+                    string strCounValue = _dr["Countycd"].ToString();
+                    _dr["cou_" + strCounValue] = "1";
+                }
+                else
+                {
+                    string strCounValue = _dr["County"].ToString();
+                    _dr["cou_" + strCounValue] = "1";
+                }
             }
 
 
 
-            dtResult = dt23Data;
+            dtResult = dtIData;
 
             return dtResult;
         }
